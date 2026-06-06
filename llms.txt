@@ -1,0 +1,55 @@
+# memo
+
+> Funes is a lightweight memoisation library for generator-based workflows that caches function results across repeated computations, solving the problem of rerunning expensive operations in iterative workflows.
+
+## Stack
+- Python 3.13+, using `uv` package manager
+- Core library for generator-based memoisation over callable stores
+- Zero production dependencies; dev stack: pytest, pytest-cov, vulture, pyright
+- Two built-in store backends: DictStore (in-memory) and SqliteStore
+- Result type for error handling (Ok/Err); Policy-based cache strategies (always, is_ok)
+- Hatchling build system; ruff linting configured per project standards
+
+## Purpose
+Funes is a lightweight memoisation library for generator-based workflows that caches function results across repeated computations, solving the problem of rerunning expensive operations in iterative workflows. It provides pluggable storage backends (in-memory dict or SQLite-backed) and selective caching via predicates like `is_ok` to avoid poisoning the cache with failures. The library is designed to compose seamlessly with generator-based effect systems like zahir/orbis by yielding from a callable store that handles the cache logic transparently.
+
+## Structure
+bs/
+    Build system scripts: format, install, lint, test
+
+pyproject.toml
+    Package metadata and tool configuration
+
+src/funes/
+    Main library code for caching and result types:
+    - __init__.py: exports
+    - memory.py: in-memory DictStore implementation
+    - sqlite.py: SQLite WAL cache backend
+    - policy.py: caching predicates
+    - protocol.py: storage interfaces
+    - result.py: Ok/Err result type
+    - funes_types.py: type definitions
+
+tests/
+    Test suite: conftest.py setup, test_store.py cache tests
+
+README.md
+    Project documentation and usage examples
+
+design.llm.md
+    Design notes
+
+## Data flows
+- **Data entry:** User calls memoised functions (plain or generators) via the `IStore` protocol — synchronously via `.run()` or as a generator via direct invocation.
+- **Flow:** Arguments are hashed into a composite cache key (function ID + argument hash); the store checks for valid cached entries (respecting TTL expiry); if hit, returns stored value; if miss, executes function, collects yielded effects, validates result against a storage policy (`always` or `is_ok`), and persists `CacheEntry` (value + optional expiry timestamp).
+- **Persistence:** Two backends — `DictStore` holds entries in memory (dict), `SqliteStore` serialises entries via pickle and stores them in a SQLite table with WAL mode enabled for durability and concurrent access.
+- **Eviction:** Explicit `.evict()` removes a cached entry; expired TTL entries are lazily evicted on next access or when recomputed value fails the storage policy.
+- **Result types:** Optionally wrap returns in `Ok` or `Err` to control caching — `is_ok` policy caches only `Ok` results, useful for distinguishing retriable errors from successes.
+
+## Architecture
+- **Protocol-based store abstraction** — `IStore[Key, Value]` defines the caching interface with pluggable key derivation and storage policies (`should_store`), allowing multiple backends without coupling business logic to storage.
+- **Generator-based effect propagation** — Stores wrap callables as generator-based programs; they yield intermediate effects which the caller can handle, and return the final cached/computed value via `StopIteration`. The `run()` method drains effects synchronously; caller can also `yield from store(fn, *args)` to preserve effects in a larger generator program.
+- **Dual-path execution with TTL and bypass** — On cache hit (and not bypassed), returns the stored value without recomputing; on miss or expiry, executes the function and conditionally stores the result based on `should_store` predicate. TTL is stored per entry and checked at retrieval time.
+- **Result type with policy filtering** — `Result[Value, Error]` protocol (Ok/Err concrete types) allows caller to decide storage via `should_store`; paired predicates like `is_ok` only cache successful results, letting failures fall through or evict stale entries.
+- **Context-manager lifecycle for durable stores** — `SqliteStore` requires `with` block entry to establish SQLite connection; operations outside the block raise `StoreError`. `DictStore` provides a no-op context manager for API uniformity.
+- **Hit/miss instrumentation and cache key namespacing** — Stores track `hits`/`misses` counters; keys are namespaced by function identity (`fn_id`) to prevent collisions between different functions with identical arguments.

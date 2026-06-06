@@ -45,6 +45,21 @@ def default_key(*args, **kwargs):
     return (args, tuple(sorted(kwargs.items())))
 
 
+def is_entry_valid(entry: CacheEntry | Miss) -> bool:
+    """True if a stored entry exists and has not passed its expiry."""
+
+    if entry is Miss.MISS:
+        return False
+    return entry.expires_at is None or time.time() < entry.expires_at
+
+
+def validate_max_size(max_size: int | None) -> None:
+    """Reject a non-positive max_size; None means unbounded."""
+
+    if max_size is not None and max_size < 1:
+        raise ConfigError("max_size must be None or a positive integer")
+
+
 @runtime_checkable
 class IStore[Key, Value](Protocol):
     """The key storage interface into funes."""
@@ -58,22 +73,25 @@ class IStore[Key, Value](Protocol):
     hits: int
     misses: int
 
-    def get(self, key: Key) -> Value | Miss:
+    # storage is keyed by a composite (fn_id, user_key) tuple and holds CacheEntry,
+    # distinct from the public Key/Value the cache is parameterised over
+    def get(self, key: tuple[str, Key]) -> CacheEntry | Miss:
         ...
 
-    def set(self, key: Key, value: Value) -> None:
+    def set(self, key: tuple[str, Key], value: CacheEntry) -> None:
         ...
 
-    def delete(self, key: Key) -> None:
+    def delete(self, key: tuple[str, Key]) -> None:
         ...
 
     def __enter__(self) -> Self:
         ...
 
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> bool:
+    def __exit__(self, *_exc: object) -> bool:
         ...
 
-    def __call__(
+    # ttl_seconds/minutes/hours are a deliberate ergonomic API, not arg sprawl
+    def __call__(  # noqa: PLR0913
         self,
         fn: Callable,
         *args: Any,
@@ -89,12 +107,9 @@ class IStore[Key, Value](Protocol):
         # namespace by function so two fns with identical args don't collide
         cache_key = (fn_id(fn), self.key(*args, **kwargs))
         entry = self.get(cache_key)
-        has_valid_entry = False
-        if entry is not Miss.MISS:
-            not_expired = entry.expires_at is None or time.time() < entry.expires_at
-            has_valid_entry = not_expired
+        has_valid_entry = is_entry_valid(entry)
 
-        if has_valid_entry and not bypass:
+        if has_valid_entry and not bypass and entry is not Miss.MISS:
             self.hits += 1
             return entry.value
 
@@ -103,6 +118,14 @@ class IStore[Key, Value](Protocol):
             self.misses += 1
         result = fn(*args, **kwargs)
         value = (yield from result) if inspect.isgenerator(result) else result
+        self.store_result(cache_key, entry, value, ttl)
+
+        return value
+
+    def store_result(
+        self, cache_key: tuple[str, Key], entry: CacheEntry | Miss, value: Value, ttl: float | None
+    ) -> None:
+        """Persist value if the policy allows; otherwise evict a now-stale entry."""
 
         if self.should_store(value):
             expires_at = time.time() + ttl if ttl is not None else None
@@ -112,9 +135,8 @@ class IStore[Key, Value](Protocol):
             # rather than leave a stale entry that triggers recompute every call
             self.delete(cache_key)
 
-        return value
-
-    def run(
+    # mirrors __call__'s ergonomic ttl API; the arg count is intentional
+    def run(  # noqa: PLR0913
         self,
         fn: Callable,
         *args: Any,

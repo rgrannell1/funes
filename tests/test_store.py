@@ -302,9 +302,8 @@ def test_ttl_miss_after_expiry():
 
 def test_ttl_mutual_exclusivity():
     """Providing more than one ttl_* argument raises ValueError."""
-    with DictStore() as store:
-        with pytest.raises(ConfigError):
-            store.run(alpha, 1, ttl_seconds=10, ttl_minutes=1)
+    with DictStore() as store, pytest.raises(ConfigError):
+        store.run(alpha, 1, ttl_seconds=10, ttl_minutes=1)
 
 
 def test_expired_entry_evicted_when_not_stored():

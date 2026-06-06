@@ -24,7 +24,7 @@ class Ok[Value]:
     """A successful result."""
     value: Value
 
-    def is_ok(self) -> bool:
+    def is_ok(self) -> bool:  # noqa: PLR6301 — instance method required by Result protocol
         """Check if the result is an Ok."""
         return True
 
@@ -38,7 +38,7 @@ class Err[Error]:
     """An error result."""
     error: Error
 
-    def is_ok(self) -> bool:
+    def is_ok(self) -> bool:  # noqa: PLR6301 — instance method required by Result protocol
         """Check if the result is an Err."""
         return False
 
