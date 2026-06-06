@@ -1,0 +1,10 @@
+
+CLAUDE.md
+design.*
+work.md
+__pycache__/
+.venv/
+.ruff_cache/
+.pytest_cache/
+.claude
+.vscode
