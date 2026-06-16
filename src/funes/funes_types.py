@@ -1,8 +1,13 @@
 """Miss sentinel, exceptions, and CacheEntry for cache and result types."""
 
+from collections.abc import Generator
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any
+
+# A generator program that may yield (bubble) effects and return a Value — the shape every
+# funes function drives under `yield from`. Yield/send are Any: funes is effect-agnostic.
+type Effectful[Value] = Generator[Any, Any, Value]
 
 
 class Miss(Enum):

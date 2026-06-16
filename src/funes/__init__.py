@@ -1,5 +1,6 @@
 # funes: generator-based memoisation over a callable Store.
 from funes.funes_types import ConfigError, FunesError, Miss, StoreError, UnwrapError
+from funes.maker import Maker
 from funes.memory import DictStore
 from funes.policy import always, is_ok
 from funes.protocol import IStore, default_key
@@ -12,6 +13,7 @@ __all__ = [
     "Err",
     "FunesError",
     "IStore",
+    "Maker",
     "Miss",
     "Ok",
     "Result",
