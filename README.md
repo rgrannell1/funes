@@ -10,6 +10,18 @@ Funes provides a tiny storage-cache layer for repeated computations. Workflows o
 1. **Cached computations**: did we store the result of this function already? If so, return it, if not compute it and store. Supports predicate-based storage, to avoid storing errors, and also supports cache bypass and eviction. Best for expensive lookups or calculations.
 2. **Makers**: does the thing exist in the world? If so, return its details; if not, create it. The more general form, which is more useful for external resource creation, that might be modified by other actors.
 
+## Install
+
+```bash
+pip install git+https://github.com/rgrannell1/funes.git
+```
+
+With `uv`:
+
+```bash
+uv add git+https://github.com/rgrannell1/funes.git
+```
+
 ## Cached Computation
 
 Workflows often perform expensive steps like statistical analysis of a resource, web-fetch of a URL. We'd prefer to avoid repeatedly computing these for the same resource, while allowing for cache-bypasses and invalidations.
