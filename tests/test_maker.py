@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from funes import Maker, Miss
+from funes import Maker
 
 
 def drive(gen):
@@ -33,9 +33,8 @@ class FunctionCounter:
 
 
 def find_effectful(*_identity):
-    """Yield an effect, then miss."""
+    """Yield an effect, then miss (fall through to an implicit None)."""
     yield "find_effect"
-    return Miss.MISS
 
 
 def find_hit_effectful(*_identity):
@@ -61,7 +60,7 @@ def make_raising(*_identity):
 SEQUENCING_CASES = [
     {"desc": "hit: find locates, make skipped", "find": ("found",), "expect": ("found",),
      "make_ran": False},
-    {"desc": "miss: find empty, make runs", "find": Miss.MISS, "expect": ("made",),
+    {"desc": "miss: find empty, make runs", "find": None, "expect": ("made",),
      "make_ran": True},
 ]
 
@@ -82,7 +81,7 @@ def test_find_make_sequencing():
 
 def test_shared_identity():
     """find and make receive the identical identity passed to ensure."""
-    find = FunctionCounter(returns=Miss.MISS)
+    find = FunctionCounter(returns=None)
     make = FunctionCounter(returns="made")
     maker = Maker(find=find, make=make)
     drive(maker.ensure("ensure:web-1", "lon1"))
@@ -129,7 +128,7 @@ def test_plain_functions():
     """Plain (non-generator) find/make are supported, like Store's plain-function path."""
 
     def find_plain(*_identity):
-        return Miss.MISS
+        return None
 
     def make_plain(*identity):
         return ("made", identity)
@@ -137,3 +136,20 @@ def test_plain_functions():
     maker = Maker(find=find_plain, make=make_plain)
     value, _ = drive(maker.ensure("x"))
     assert value == ("made", ("x",))
+
+
+# --- synchronous run driver ---
+
+
+def test_run_drives_to_value():
+    """run drives ensure to completion and returns the value, discarding yielded effects."""
+    maker = Maker(find=find_effectful, make=make_effectful)   # find misses, make builds
+    assert maker.run("x") == "made"
+
+
+def test_run_returns_found():
+    """run returns the resource find locates without invoking make."""
+    make = FunctionCounter(returns="made")
+    maker = Maker(find=find_hit_effectful, make=make)
+    assert maker.run("x") == "found"
+    assert make.calls == []
