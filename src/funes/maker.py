@@ -7,7 +7,7 @@ from typing import Any
 from funes.funes_types import Effectful
 
 # a find may locate the resource, miss (None), or yield effects before doing either
-type FindResult[Value] = Value | None | Effectful[Value | None]
+type FindResult[Value] = Value | Effectful[Value | None] | None
 
 # a make builds the resource directly, or yields effects before returning it
 type MakeResult[Value] = Value | Effectful[Value]

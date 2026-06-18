@@ -1,6 +1,8 @@
 
 # Funes
 
+[![CI/CD](https://github.com/rgrannell1/funes/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/rgrannell1/funes/actions/workflows/ci-cd.yml)
+
 > I have more memories in myself alone than all men have had since the world was a world.
 
 Funes provides a tiny storage-cache layer for repeated computations. Workflows often run through a list of targets repeatedly; this provides two easy patterns for avoiding repeatly running slow steps.
